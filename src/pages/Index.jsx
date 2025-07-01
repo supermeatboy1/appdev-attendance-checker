@@ -18,10 +18,12 @@ const Index = () => {
   const [clockIn, setClockIn] = useState(true)
   const [useRFID, setUseRFID] = useState(true)
   const [idInput, setIdInput] = useState("")
+  const [yearInput, setYearInput] = useState(-1)
   const [lastInputTime, setLastInputTime] = useState(Date.now())
   const [errorLog, setErrorLog] = useState(null);
   const [idConfirm, setIdConfirm] = useState(null);
   const [idConfirmModal, setIdConfirmModal] = useState(false);
+  const [yearPromptModal, setYearPromptModal] = useState(false);
   const [loadingModal, setLoadingModal] = useState(null);
   const [successModal, setSuccessModal] = useState(false);
   const [foundStudent, setFoundStudent] = useState("[ERROR]");
@@ -38,18 +40,18 @@ const Index = () => {
     return () => clearInterval(interval);
   }, [useRFID, idConfirm, idInputRef])
 
-  const fetchStudent = async (isRFID, currentInput) => {
+  const fetchStudent = async (isRFID, currentInput, hasNewYearLevel) => {
     if (currentInput === undefined || currentInput === null || currentInput === "") {
       setLoadingModal(null);
       return;
     }
 
-    console.log(`isRFID: ${isRFID}, currentInput: ${currentInput}`)
+    console.log(`isRFID: ${isRFID}, currentInput: ${currentInput}, hasNewYearLevel: ${hasNewYearLevel}`)
 
     if (!isRFID) {
       const { data, error } = await supabase
-        .from('StudentsWithCluster')
-        .select("student_id, name, cluster_name")
+        .from('Students')
+        .select("student_id, name, year")
         .eq("student_id", currentInput)
 
       setLoadingModal(null);
@@ -61,8 +63,12 @@ const Index = () => {
         setErrorLog(`Student with ID "${currentInput}" not found.`);
         return;
       } else {
-        setIdConfirm(data[0]);
-        setIdConfirmModal(true);
+        if (!hasNewYearLevel) {
+          setIdConfirm(data[0]);
+          setIdConfirmModal(true);
+        } else {
+          confirmId(data[0], true);
+        }
 
         console.log(data[0]);
       }
@@ -80,7 +86,7 @@ const Index = () => {
       if (data.length == 0) {
         navigate("/rfid_link", { state: {"rfid": currentInput} });
       } else {
-        fetchStudent(false, data[0]["student_id"]);
+        fetchStudent(false, data[0]["student_id"], false);
       }
     }
   }
@@ -107,14 +113,43 @@ const Index = () => {
     }
   }
 
-  const submitInput = async () => {
-    console.log("Current input: " + idInput);
-    const currentIdInput = idInput;
+  const updateStudentYear = async (studentId, yearLevel) => {
+    setLoadingModal("Updating year level...");
+
+    const { error } = await supabase
+      .from('Students')
+      .update({ year: yearLevel })
+      .eq("student_id", studentId);
+
+    setLoadingModal(null);
+
+    if (error) {
+      setErrorLog(error);
+    } else {
+      await submitInput(studentId, true);
+    }
+  }
+
+  const submitInput = async (studentId, hasNewYearLevel) => {
+    console.log("Current input: " + (studentId || idInput));
+    const currentIdInput = studentId || idInput;
 
     setLoadingModal("Looking for student information...");
-    fetchStudent(useRFID, currentIdInput);
+    fetchStudent(useRFID, currentIdInput, hasNewYearLevel || (studentId !== undefined && studentId > 0));
     setIdInput("");
-  } 
+  }
+
+  const confirmId = (inputData, hasNewYearLevel) => {
+    const data = inputData || idConfirm;
+
+    setIdConfirmModal(false);
+    if (hasNewYearLevel || ("year" in data && data["year"] > 0 && data["year"] < 5)) {
+      recordAttendance(idConfirm["student_id"])
+    } else {
+      setYearInput(1);
+      setYearPromptModal(true);
+    }
+  }
 
   return (
     <>
@@ -164,7 +199,7 @@ const Index = () => {
               <Button type="button" onClick={() => { setClockIn(true) }} selected={clockIn}>IN</Button>
               <Button type="button" onClick={() => { setClockIn(false) }} selected={!clockIn}>OUT</Button>
               <div className="flex-grow"></div>
-              <Button type="button" onClick={submitInput} selected={true}>Record Attendance</Button>
+              <Button type="button" onClick={() => submitInput()} selected={true}>Record Attendance</Button>
             </div>
           </div>
         </div>
@@ -173,10 +208,39 @@ const Index = () => {
             <ConfirmationModal
                 noButton='No'
                 yesButton='Yes'
-                message={'Are you ' + idConfirm["name"] + " from the cluster " + idConfirm["cluster_name"] + "?"}
-                onYes={() => {setIdConfirmModal(false); recordAttendance(idConfirm["student_id"]) } }
+                message={'Are you ' + idConfirm["name"] + "?"}
+                onYes={() => confirmId()}
                 onNo={() => {setIdConfirmModal(false); setIdConfirm(null);} }
             />
+        )}
+        {(idConfirm != null && yearPromptModal) && (
+          <DialogModal
+              buttonText='Update'
+              message='Please input your year level below. (1 / 2 / 3 / 4)' 
+              onClick={async () => {
+                if (yearInput <= 0) {
+                  return;
+                }
+                console.log(`New year level for ${idConfirm["student_id"]}: ${yearInput}`);
+                setYearInput(-1);
+                setYearPromptModal(false);
+                await updateStudentYear(idConfirm["student_id"], yearInput);
+              }}
+          >
+            <input
+              type='number'
+              name='year'
+              className="mt-1 block w-full p-2 border border-gray-300 bg-white rounded-md"
+              value={yearInput}
+              onChange={(e) => {
+                const { name, value } = e.target;
+                if (name === "year") {
+                  setYearInput(value);
+                }
+              }}
+              required
+            />
+          </DialogModal>
         )}
         {errorLog != null && (
             <ErrorDialogModal

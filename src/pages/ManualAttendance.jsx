@@ -14,10 +14,8 @@ const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env
 const ManualAttendance = () => {
   const navigate = useNavigate();
 
-  const CLUSTERS = ["ATYCB - Ardor", "CHS - Fuego", "CAS - Incendio", "CEA - Lumbre", "CCIS - Stella"]
-
   const [clockIn, setClockIn] = useState(true)
-  const [formData, setFormData] = useState({"studentId": "", "studentName": "", "cluster": 1})
+  const [formData, setFormData] = useState({"studentId": "", "studentName": "", "year": 1, "type": "IN"})
   const [loadingModal, setLoadingModal] = useState(null);
   const [errorLog, setErrorLog] = useState(null);
   const [successModal, setSuccessModal] = useState(false);
@@ -41,7 +39,7 @@ const ManualAttendance = () => {
     const { error } = await supabase
       .from('ManualAttendance')
       .insert({ student_id: formData["studentId"], type: attendanceType,
-                name: formData["studentName"], cluster_id: formData["cluster"] });
+                name: formData["studentName"], year: formData["year"] });
 
     setLoadingModal(null);
 
@@ -86,13 +84,15 @@ const ManualAttendance = () => {
                 onChange={changeForm}
                 required
             />
-            <label className="block text-sm font-medium text-gray-100 pt-4">Cluster</label>
-            <select className="mt-1 block w-full p-2.5 border border-gray-300 bg-white rounded-md" name='cluster' value={formData["cluster"]} onChange={changeForm}>
-                {CLUSTERS.map((row, rowIndex) => (
-                      <option value={rowIndex + 1}>{row}</option>
-                    )
-                )}
-            </select>
+            <label className="block text-sm font-medium text-gray-100 pt-4">Year (1 / 2 / 3 / 4)</label>
+            <input
+                type='number'
+                name='year'
+                className="mt-1 block w-full p-2 border border-gray-300 bg-white rounded-md"
+                value={formData["year"]}
+                onChange={changeForm}
+                required
+            />
             <label className="block text-sm font-medium text-gray-100 py-4">Attendance Type</label>
             <div className="flex flex-row justify-start">
               <Button type="button" onClick={() => { setClockIn(true) }} selected={clockIn}>IN</Button>
