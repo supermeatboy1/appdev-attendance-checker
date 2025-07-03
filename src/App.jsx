@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Index from "./pages/Index"
+import StudentIdAttendance from "./pages/StudentIdAttendance"
 import ManualAttendance from "./pages/ManualAttendance"
 import RFIDLinker from "./pages/RFIDLinker"
 
@@ -9,6 +10,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route index element={<Index />} />
+        <Route path="student_id" element={<StudentIdAttendance />} />
         <Route path="manual_attendance" element={<ManualAttendance />} />
         <Route path="rfid_link" element={<RFIDLinker />} />
       </Routes>

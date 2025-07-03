@@ -12,7 +12,7 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_NEXT_PUBLIC_SUPABASE_ANON_KEY)
 
-const Index = () => {
+const StudentIdAttendance = () => {
   const navigate = useNavigate();
 
   const [clockIn, setClockIn] = useState(true)
@@ -28,17 +28,6 @@ const Index = () => {
   const [foundStudent, setFoundStudent] = useState("[ERROR]");
   const idInputRef = useRef(null);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (document.activeElement != idInputRef.current && !idConfirmModal) {
-        console.log("Bringing back the focus...")
-        idInputRef.current?.focus();
-      }
-    }, 200);
-
-    return () => clearInterval(interval);
-  }, [idConfirm, idInputRef])
-
   const fetchStudent = async (currentInput, hasNewYearLevel) => {
     if (currentInput === undefined || currentInput === null || currentInput === "") {
       setLoadingModal(null);
@@ -48,9 +37,9 @@ const Index = () => {
     console.log(`currentInput: ${currentInput}, hasNewYearLevel: ${hasNewYearLevel}`)
 
     const { data, error } = await supabase
-      .from('RfidToStudent')
-      .select("student_id, rfid")
-      .eq("rfid", currentInput)
+      .from('Students')
+      .select("student_id, name, year")
+      .eq("student_id", currentInput)
 
     setLoadingModal(null);
     if (error) {
@@ -58,31 +47,17 @@ const Index = () => {
       return;
     }
     if (data.length == 0) {
-      navigate("/rfid_link", { state: {"rfid": currentInput} });
+      setErrorLog(`Student with ID "${currentInput}" not found.`);
+      return;
     } else {
-      const studentId = data[0].student_id
-
-      const params = await supabase
-        .from('Students')
-        .select("student_id, name, year")
-        .eq("student_id", studentId)
-
-      setLoadingModal(null);
-      if (params.error) {
-        setErrorLog(params.error["code"] + " - " + params.error["message"]);
-        return;
-      }
-      if (params.data.length == 0) {
-        setErrorLog(`Student with ID "${studentId}" not found.`);
-        return;
+      if (!hasNewYearLevel) {
+        setIdConfirm(data[0]);
+        setIdConfirmModal(true);
       } else {
-        if (!hasNewYearLevel) {
-          setIdConfirm(params.data[0]);
-          setIdConfirmModal(true);
-        } else {
-          confirmId(params.data[0], true);
-        }
+        confirmId(data[0], true);
       }
+
+      console.log(data[0]);
     }
   }
 
@@ -121,7 +96,7 @@ const Index = () => {
     if (error) {
       setErrorLog(error);
     } else {
-      await submitInput(idInput, true);
+      await submitInput(studentId, true);
     }
   }
 
@@ -131,6 +106,7 @@ const Index = () => {
 
     setLoadingModal("Looking for student information...");
     fetchStudent(currentIdInput, hasNewYearLevel || (studentId !== undefined && studentId > 0));
+    setIdInput("");
   }
 
   const confirmId = (inputData, hasNewYearLevel) => {
@@ -158,12 +134,12 @@ const Index = () => {
             <h1 className="text-yellow-300 text-4xl">Attendance Checker</h1>
           </div>
           <div className="flex flex-row justify-center">
-            <Button type="button" selected={true}>Use RFID</Button>
-            <Button type="button" onClick={() => { navigate("/student_id") }} selected={false}>Use Student ID</Button>
+            <Button type="button" onClick={() => { navigate("/")}} selected={false}>Use RFID</Button>
+            <Button type="button" selected={true}>Use Student ID</Button>
             <Button type="button" onClick={() => { navigate("/manual_attendance") }}>Manual Attendance</Button>
           </div>
           <div className="p-10">
-            <label className="block text-sm font-medium text-gray-100">RFID Input</label>
+            <label className="block text-sm font-medium text-gray-100">Student ID Input</label>
             <input
                 ref={idInputRef}
                 type='text'
@@ -177,12 +153,6 @@ const Index = () => {
                 onKeyDown={(e) => {
                   if (e.key == 'Enter') {
                     submitInput();
-                  } else {
-                    const diff = Date.now() - lastInputTime;
-                    setLastInputTime(Date.now());
-                    if (diff > 250) {
-                      setIdInput("");
-                    }
                   }
                 }}
             />
@@ -204,11 +174,7 @@ const Index = () => {
                 yesButton='Yes'
                 message={'Are you ' + idConfirm["name"] + "?"}
                 onYes={() => confirmId()}
-                onNo={() => {
-                  setIdInput("");
-                  setIdConfirmModal(false);
-                  setIdConfirm(null);
-                } }
+                onNo={() => {setIdConfirmModal(false); setIdConfirm(null);} }
             />
         )}
         {(idConfirm != null && yearPromptModal) && (
@@ -252,10 +218,7 @@ const Index = () => {
             <DialogModal
                 buttonText='Ok'
                 message='Attendance recorded.' 
-                onClick={() => {
-                  setIdInput("")
-                  setSuccessModal(false)
-                }}
+                onClick={() => setSuccessModal(false) }
             />
         )}
         {loadingModal != null && (
@@ -267,4 +230,4 @@ const Index = () => {
   )
 }
 
-export default Index
+export default StudentIdAttendance
